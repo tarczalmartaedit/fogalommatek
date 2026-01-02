@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Matekos Ábécé — Háromgyűrűs játék</title>
+  <style>
+    :root{
+      --bg:#f6f7fb;
+      --card:#ffffff;
+      --ink:#0f172a;
+      --muted:#64748b;
+      --line:#e5e7eb;
+      --accent:#14b8a6;
+      --ok:#22c55e;
+      --shadow: 0 10px 30px rgba(15,23,42,.08);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+      color:var(--ink);
+      background: linear-gradient(180deg,#fff, var(--bg));
+    }
+    .wrap{max-width:1200px;margin:18px auto;padding:12px;}
+    .shell{
+      background:#ffe9df33;
+      border:1px solid #f0d8cf;
+      border-radius:18px;
+      padding:12px;
+      box-shadow:var(--shadow);
+    }
+    .grid{
+      display:grid;
+      grid-template-columns:1.25fr .95fr;
+      gap:12px;
+      min-height:640px;
+    }
+    @media (max-width: 980px){
+      .grid{grid-template-columns:1fr; min-height:auto;}
+    }
+    .panel{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:14px;
+      box-shadow: 0 6px 20px rgba(15,23,42,.06);
+      overflow:hidden;
+    }
+    .head{
+      display:flex;align-items:center;gap:10px;
+      padding:2px 2px 10px;border-bottom:1px solid var(--line);margin-bottom:10px;
+    }
+    .dot{width:10px;height:10px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 4px rgba(20,184,166,.12);}
+    .title{font-weight:700;font-size:15px;color:#0b1224;}
+    .sub{color:var(--muted);font-size:12px;margin-left:auto;}
+
+    .ringStage{
+      position:relative;width:100%;
+      aspect-ratio: 1/1;
+      max-height:560px;margin:6px auto 0;
+      background: radial-gradient(circle at 50% 45%, #ffffff 0, #ffffff 42%, #f8fafc 75%, #f8fafc 100%);
+      border:1px solid #eff3f7;border-radius:14px;overflow:hidden;
+    }
+    .bubble{
+      position:absolute;
+      display:flex;align-items:center;justify-content:center;
+      width:58px;height:58px;border-radius:999px;
+      background:#f1f5f9;border:1px solid #e2e8f0;
+      color:#0f172a;font-weight:700;
+      user-select:none;
+      transition: transform .18s ease, background .18s ease, border-color .18s ease, box-shadow .18s ease, opacity .18s ease;
+      box-shadow:0 6px 14px rgba(2,6,23,.06);
+      cursor:pointer;
+    }
+    .bubble.small{width:54px;height:54px;font-size:13px;}
+    .bubble.tiny{width:50px;height:50px;font-size:12px;}
+    .bubble:hover{transform: translateY(-2px);}
+
+    /* Ékezetes betűk: csíkozott háttér */
+    .bubble.accented{
+      background:
+        repeating-linear-gradient(135deg, rgba(59,130,246,.10) 0, rgba(59,130,246,.10) 6px, rgba(241,245,249,1) 6px, rgba(241,245,249,1) 12px);
+      border-color: rgba(59,130,246,.35);
+    }
+    .bubble.solved{
+      background: rgba(34,197,94,.12);
+      border-color: rgba(34,197,94,.45);
+      box-shadow: 0 10px 22px rgba(34,197,94,.16);
+      cursor:default;
+    }
+    .bubble.solved.accented{
+      background:
+        repeating-linear-gradient(135deg, rgba(34,197,94,.14) 0, rgba(34,197,94,.14) 6px, rgba(255,255,255,1) 6px, rgba(255,255,255,1) 12px);
+    }
+    .bubble.active{
+      background: rgba(20,184,166,.12);
+      border-color: rgba(20,184,166,.55);
+      box-shadow: 0 10px 22px rgba(20,184,166,.18);
+      transform: translateY(-2px) scale(1.03);
+    }
+    .bubble.active.accented{
+      background:
+        repeating-linear-gradient(135deg, rgba(20,184,166,.16) 0, rgba(20,184,166,.16) 6px, rgba(255,255,255,1) 6px, rgba(255,255,255,1) 12px);
+    }
+
+    .centerHint{
+      position:absolute;left:50%;top:50%;
+      transform: translate(-50%,-50%);
+      width:200px;height:200px;border-radius:999px;
+      border:2px dashed #dbeafe;
+      background: rgba(59,130,246,.03);
+      display:flex;align-items:center;justify-content:center;
+      text-align:center;padding:14px;
+      color:var(--muted);
+      font-size:12px;line-height:1.25;
+      pointer-events:none;
+    }
+
+    .stats{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px;}
+    .statLeft{display:flex;flex-wrap:wrap;gap:12px;font-size:14px;font-weight:700;color:#0b1224;}
+    .statLeft .mut{font-weight:600;color:var(--muted);}
+    .timer{
+      min-width:92px;text-align:center;padding:10px 12px;border-radius:999px;
+      border:1px solid var(--line);background:#f8fafc;font-weight:900;font-size:22px;letter-spacing:.5px;
+    }
+    .clueCard{
+      border:1px solid var(--line);border-radius:14px;background:#fff;padding:12px;
+      box-shadow:0 6px 16px rgba(2,6,23,.06);
+      margin:10px 0 12px;display:flex;gap:12px;align-items:flex-start;
+      min-height:78px;
+    }
+    .badge{
+      width:40px;height:40px;border-radius:12px;
+      background: rgba(20,184,166,.12);
+      border:1px solid rgba(20,184,166,.45);
+      display:flex;align-items:center;justify-content:center;
+      font-weight:900;
+      flex: 0 0 auto;
+    }
+    .clueText{font-size:14px;line-height:1.35;color:#0f172a;}
+    .controls{display:flex;gap:10px;align-items:center;}
+    .controls input{
+      flex:1;padding:12px;border-radius:12px;border:2px solid #cbd5e1;outline:none;font-size:14px;
+    }
+    .controls input:focus{
+      border-color: rgba(20,184,166,.75);
+      box-shadow: 0 0 0 4px rgba(20,184,166,.14);
+    }
+    button{
+      padding:11px 14px;border-radius:12px;border:1px solid var(--line);
+      background:#f8fafc;font-weight:800;cursor:pointer;
+      transition: transform .12s ease, background .12s ease, box-shadow .12s ease;
+      white-space:nowrap;
+    }
+    button:hover{transform: translateY(-1px); box-shadow: 0 8px 14px rgba(2,6,23,.08);}
+    button.primary{background:var(--accent);border-color: rgba(20,184,166,.65);color:#fff;}
+    button.primary:hover{background:#10b981;}
+    .row2{margin-top:14px;display:flex;justify-content:center;}
+    .hint{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;line-height:1.35;}
+    .toast{margin-top:10px;min-height:22px;font-size:13px;font-weight:700;}
+    .toast.ok{color:var(--ok);}
+    .toast.bad{color:#ef4444;}
+    .toast.neutral{color:var(--muted);}
+
+    /* ✅ Pont felvillanás középen */
+    #pointFlash{
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%,-50%) scale(0.6);
+      background: rgba(34,197,94,0.95);
+      color: white;
+      font-size: 52px;
+      font-weight: 900;
+      padding: 26px 40px;
+      border-radius: 26px;
+      box-shadow: 0 20px 40px rgba(0,0,0,.25);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 9999;
+      transition: all .35s ease;
+      letter-spacing: .5px;
+    }
+    #pointFlash.show{
+      opacity: 1;
+      transform: translate(-50%,-50%) scale(1);
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="shell">
+      <div class="grid">
+        <section class="panel">
+          <div class="head">
+            <div class="dot"></div>
+            <div class="title">Matekos Ábécé — Háromgyűrűs játék (alapfogalmak)</div>
+            <div class="sub">A betűt a játékos választja • ékezet számít</div>
+          </div>
+
+          <div class="ringStage" id="ringStage" aria-label="Betűk gyűrűben">
+            <div class="centerHint">
+              Kattints egy betűre!<br><br>
+              ✅ megoldva → zöld<br>
+              🎯 kiválasztva → türkiz<br>
+              🔷 ékezetes → csíkozott
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="stats">
+            <div class="statLeft">
+              <span>Pont: <b id="score">0</b></span>
+              <span class="mut">Megoldva: <b id="solvedCount">0</b>/<span id="totalCount">0</span></span>
+              <span class="mut">Passz: <b id="passes">0</b></span>
+              <span class="mut">Hátra: <b id="remaining">0</b></span>
+            </div>
+            <div class="timer" id="timer">00:00</div>
+          </div>
+
+          <div class="clueCard">
+            <div class="badge" id="badgeLetter">?</div>
+            <div class="clueText" id="clueText">Válassz betűt a bal oldali körből!</div>
+          </div>
+
+          <div class="controls">
+            <input id="answer" type="text" placeholder="Válasz…" autocomplete="off" />
+            <button class="primary" id="send">Beküld</button>
+            <button id="pass">Passz</button>
+          </div>
+
+          <div class="toast neutral" id="toast"></div>
+
+          <div class="row2">
+            <button id="reset">Reset</button>
+          </div>
+
+          <div class="hint">
+            A válasz kis-/nagybetűtől független, de <b>az ékezet számít</b> (A ≠ Á, O ≠ Ó ≠ Ö).
+            Kétjegyű betűk: <b>Sz</b>, <b>Cs</b>, <b>Gy</b>, <b>Ny</b>, <b>Zs</b>.
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ pont-felvillanás -->
+  <div id="pointFlash">+10 PONT</div>
+
+<script>
+(() => {
+  // Ő és Ty kivéve
+  const LETTERS = ["A","Á","B","C","Cs","D","E","É","F","G","Gy","H","I","Í","J","K","L","M","N","Ny","O","Ó","Ö","P","R","S","Sz","T","U","Ú","Ü","Ű","V","Z","Zs"];
+
+  // Fogalmak (matekos alapfogalmak)
+  const BANK = {
+    "A":  [{a:"alapterület", q:"Térbeli test (pl. hasáb, henger) aljának területe."}],
+    "Á": [{a:"átló", q:"A téglalap (vagy négyzet) két nem szomszédos csúcsát összekötő szakasz."}],
+    "B":  [{a:"becslés", q:"Gyors, hozzávetőleges meghatározás: nem pontos számolás, csak közelítés."}],
+    "C":  [{a:"centiméter", q:"Hosszúság mértékegysége, rövidítése: cm."}],
+    "Cs": [{a:"csúcs", q:"Sokszög „sarka”, ahol két oldal találkozik."}],
+    "D":  [{a:"derékszög", q:"90°-os szög."}],
+    "E":  [{a:"egyenlet", q:"Olyan állítás, amelyben két kifejezés egyenlő (van benne „=” jel)."}],
+    "É":  [{a:"érték", q:"Egy kifejezés kiszámolt eredménye (pl. behelyettesítés után)."}],
+    "F":  [{a:"felbontás", q:"Egy szám szétszedése részekre (pl. 345 = 300 + 40 + 5)."}],
+    "G":  [{a:"grafikon", q:"Adatok ábrázolása koordináta-rendszerben (pl. oszlopdiagram, vonaldiagram)."}],
+    "Gy": [{a:"gyök", q:"A négyzetgyök jele: √. Példa: √9 = 3."}],
+    "H":  [{a:"hányados", q:"Osztás eredménye."}],
+    "I":  [{a:"idő", q:"Mérhető mennyiség (másodperc, perc, óra)."}],
+    "Í":  [{a:"írásbeli", q:"Olyan számolási mód, amikor lépésről lépésre leírjuk a műveletet (pl. írásbeli összeadás)."}],
+    "J":  [{a:"jel", q:"Matematikai szimbólum (pl. +, −, ·, :, =)."}],
+    "K":  [{a:"kerület", q:"Egy síkidom határoló vonalának teljes hossza."}],
+    "L":  [{a:"lépték", q:"Arány, ami megmutatja, hogy a térkép/rajz mennyire kicsinyít vagy nagyít."}],
+    "M":  [{a:"mértékegység", q:"A mérés „egysége” (pl. cm, m, kg, l)."}],
+    "N":  [{a:"négyzet", q:"Olyan téglalap, amelynek minden oldala egyenlő."}],
+    "Ny": [{a:"nyolc", q:"A 8-as szám neve."}],
+    "O":  [{a:"osztó", q:"Az a szám, amellyel osztunk (pl. 12 : 3 esetén 3)."}],
+    "Ó":  [{a:"óra", q:"Időmértékegység: 60 perc."}],
+    "Ö":  [{a:"összeg", q:"Összeadás eredménye."}],
+    "P":  [{a:"páratlan", q:"Olyan egész szám, ami nem osztható 2-vel maradék nélkül."}],
+    "R":  [{a:"rész", q:"Egy egésznek a darabja (pl. a torta egy része)."}],
+    "S":  [{a:"sugár", q:"A kör középpontját a körvonal egy pontjával összekötő szakasz."}],
+    "Sz": [{a:"számláló", q:"Törtben a felső szám (pl. 3/5-ben a 3)."}],
+    "T":  [{a:"törtszám", q:"Olyan szám, ami egy egész részét jelenti (pl. 1/2, 3/4)."}],
+    "U":  [{a:"univerzális", q:"Olyan, ami sok helyzetben használható (pl. univerzális módszer)."}],
+    "Ú":  [{a:"úthossz", q:"A megtett út hossza (pl. km-ben mérjük)."}],
+    "Ü":  [{a:"ütem", q:"Ritmus/lépésszám: pl. „minden lépésben 2-vel nő” (sorozatoknál)."}],
+    "Ű":  [{a:"űrtartalom", q:"A tartályban elférő mennyiség (pl. literben)."}],
+    "V":  [{a:"valószínűség", q:"Annak „esélye”, hogy valami megtörténik (0 és 1 között)."}],
+    "Z":  [{a:"zárójel", q:"Jel, ami megmutatja a műveleti sorrendet: ( )."}],
+    "Zs": [{a:"zsugorítás", q:"Méretek arányos csökkentése (kicsinyítés)."}]
+  };
+
+  // Csak azok a betűk számítanak megoldandónak, amelyekhez van feladvány
+  const PLAYABLE = LETTERS.filter(l => (BANK[l] && BANK[l].length));
+
+  // Állapot
+  let solved = new Set();   // PLAYABLE-ből
+  let currentLetter = null;
+  let currentQA = null;
+  let score = 0;
+  let passes = 0;
+
+  let t0 = null;
+  let timerId = null;
+
+  // DOM
+  const stage = document.getElementById("ringStage");
+  const badgeLetter = document.getElementById("badgeLetter");
+  const clueText = document.getElementById("clueText");
+  const answerEl = document.getElementById("answer");
+  const toastEl = document.getElementById("toast");
+
+  const scoreEl = document.getElementById("score");
+  const solvedEl = document.getElementById("solvedCount");
+  const totalEl = document.getElementById("totalCount");
+  const passesEl = document.getElementById("passes");
+  const remainingEl = document.getElementById("remaining");
+  const timerEl = document.getElementById("timer");
+
+  const pointFlash = document.getElementById("pointFlash");
+
+  totalEl.textContent = PLAYABLE.length;
+
+  // Segédek
+  const lower = (s) => (s ?? "").toString().trim().toLocaleLowerCase("hu-HU");
+  const ACCENTED_SINGLE = new Set(["Á","É","Í","Ó","Ö","Ú","Ü","Ű"]);
+  function isAccentedLetter(letter){
+    if(letter.length === 1) return ACCENTED_SINGLE.has(letter);
+    return /[ÁÉÍÓÖŐÚÜŰáéíóöőúüű]/.test(letter);
+  }
+  function startsWithLetter(word, letter){
+    return lower(word).startsWith(lower(letter));
+  }
+  function fmtTime(ms){
+    const s = Math.floor(ms/1000);
+    const mm = String(Math.floor(s/60)).padStart(2,"0");
+    const ss = String(s%60).padStart(2,"0");
+    return `${mm}:${ss}`;
+  }
+  function setToast(kind, msg){
+    toastEl.className = "toast " + (kind || "neutral");
+    toastEl.textContent = msg || "";
+  }
+  function updateStats(){
+    scoreEl.textContent = score;
+    solvedEl.textContent = solved.size;
+    passesEl.textContent = passes;
+    remainingEl.textContent = Math.max(0, PLAYABLE.length - solved.size);
+  }
+  function pickQA(letter){
+    const arr = BANK[letter] || [];
+    return arr[Math.floor(Math.random()*arr.length)];
+  }
+  function showPoint(points){
+    pointFlash.textContent = `+${points} PONT`;
+    pointFlash.classList.add("show");
+    setTimeout(() => pointFlash.classList.remove("show"), 900);
+  }
+
+  function setCurrent(letter){
+    currentLetter = letter;
+    currentQA = pickQA(letter);
+    badgeLetter.textContent = letter;
+    clueText.textContent = currentQA.q;
+    answerEl.value = "";
+    answerEl.focus();
+    renderRings();
+    setToast("neutral", "");
+  }
+
+  function clearCurrent(){
+    currentLetter = null;
+    currentQA = null;
+    badgeLetter.textContent = "?";
+    clueText.textContent = "Válassz betűt a bal oldali körből!";
+    answerEl.value = "";
+    renderRings();
+  }
+
+  function finishIfDone(){
+    if(solved.size === PLAYABLE.length){
+      setToast("ok", `Kész! 🎉 Teljesítetted az összes feladványos betűt. Pont: ${score}`);
+      badgeLetter.textContent = "✓";
+      clueText.textContent = "Gratulálok! Nyomj Resetet egy új körhöz.";
+      currentLetter = null;
+      currentQA = null;
+      renderRings();
+      return true;
+    }
+    return false;
+  }
+
+  // Gyűrű kirajzolás
+  function renderRings(){
+    stage.querySelectorAll(".bubble").forEach(n => n.remove());
+
+    const rect = stage.getBoundingClientRect();
+    const cx = rect.width/2;
+    const cy = rect.height/2;
+
+    const rings = [
+      {r: Math.min(rect.width,rect.height)*0.22, count: 12},
+      {r: Math.min(rect.width,rect.height)*0.33, count: 12},
+      {r: Math.min(rect.width,rect.height)*0.44, count: LETTERS.length - 24}
+    ];
+
+    const ringLetters = [];
+    let idx = 0;
+    for(const rg of rings){
+      ringLetters.push(LETTERS.slice(idx, idx+rg.count));
+      idx += rg.count;
+    }
+
+    ringLetters.forEach((arr, ringIndex) => {
+      const rg = rings[ringIndex];
+      const count = arr.length || 1;
+      arr.forEach((letter, i) => {
+        const angle = (-90 + (360 * i / count)) * Math.PI/180;
+        const x = cx + rg.r * Math.cos(angle);
+        const y = cy + rg.r * Math.sin(angle);
+
+        const b = document.createElement("div");
+        b.className = "bubble";
+        if(letter.length >= 2) b.classList.add("small");
+        if(letter.length >= 3) b.classList.add("tiny");
+        if(isAccentedLetter(letter)) b.classList.add("accented");
+
+        const hasQA = !!(BANK[letter] && BANK[letter].length);
+
+        if(hasQA && solved.has(letter)) b.classList.add("solved");
+        if(letter === currentLetter) b.classList.add("active");
+
+        b.textContent = letter;
+        b.style.left = (x - 29) + "px";
+        b.style.top  = (y - 29) + "px";
+
+        b.addEventListener("click", () => {
+          if(!hasQA){
+            setToast("neutral", `Ehhez a betűhöz most nincs feladvány: ${letter}`);
+            return;
+          }
+          if(solved.has(letter)){
+            setToast("neutral", "Ez a betű már kész ✅ Válassz másikat!");
+            return;
+          }
+          setCurrent(letter);
+        });
+
+        stage.appendChild(b);
+      });
+    });
+  }
+
+  // Időmérő
+  function startTimer(){
+    if(timerId) clearInterval(timerId);
+    t0 = performance.now();
+    timerId = setInterval(() => {
+      timerEl.textContent = fmtTime(performance.now() - t0);
+    }, 250);
+  }
+
+  // Beküldés
+  function submit(){
+    if(!currentLetter){
+      setToast("neutral", "Először válassz egy betűt a körből!");
+      return;
+    }
+
+    const ans = lower(answerEl.value);
+    if(!ans){
+      setToast("neutral", "Írj be egy választ!");
+      return;
+    }
+
+    const correct = currentQA?.a ?? "";
+    const okExact = lower(correct) === ans;
+    const okStart = startsWithLetter(ans, currentLetter);
+
+    if(okExact && okStart){
+      solved.add(currentLetter);
+      score += 10;
+      showPoint(10);
+      setToast("ok", `Helyes! ✅ (${correct})`);
+      updateStats();
+      renderRings();
+
+      if(finishIfDone()) return;
+
+      // ✅ nem ad automatikusan új betűt
+      clearCurrent();
+      return;
+    }
+
+    if(okStart && !okExact){
+      setToast("bad", `Jó a kezdőbetű (${currentLetter}), de most a keresett fogalom nem ez. Próbáld újra!`);
+      return;
+    }
+
+    setToast("bad", `Nem jó. Tipp: a válasz ${currentLetter}-vel kezdődik (ékezet számít!).`);
+  }
+
+  // Passz: elengedi az aktuális betűt, de nem oldja meg
+  function doPass(){
+    if(!currentLetter){
+      setToast("neutral", "Nincs kiválasztott betű. Kattints egy betűre!");
+      return;
+    }
+    passes += 1;
+    score = Math.max(0, score - 2);
+    updateStats();
+    setToast("neutral", "Passz. (-2 pont) Válassz egy másik betűt!");
+    clearCurrent();
+  }
+
+  // Reset
+  function reset(){
+    solved = new Set();
+    currentLetter = null;
+    currentQA = null;
+    score = 0;
+    passes = 0;
+    timerEl.textContent = "00:00";
+    setToast("neutral", "");
+    updateStats();
+    renderRings();
+    startTimer();
+    clearCurrent();
+  }
+
+  // Események
+  document.getElementById("send").addEventListener("click", submit);
+  document.getElementById("pass").addEventListener("click", doPass);
+  document.getElementById("reset").addEventListener("click", reset);
+
+  answerEl.addEventListener("keydown", (e) => {
+    if(e.key === "Enter") submit();
+    if(e.key === "Escape") doPass();
+  });
+
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderRings, 120);
+  });
+
+  // Init
+  updateStats();
+  renderRings();
+  startTimer();
+  clearCurrent();
+})();
+</script>
+</body>
+</html>
